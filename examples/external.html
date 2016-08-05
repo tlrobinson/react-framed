@@ -1,0 +1,78 @@
+<script>
+  function safeClone(object) {
+    return JSON.parse(JSON.stringify(object, function(key, value) {
+      if (Array.isArray(value) || (value && value.constructor === Object) ||
+        value == null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        return value;
+      }
+    }));
+  }
+
+  function forceUpdate() {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ forceUpdate: true }, "*");
+    } else if (window.opener && window.opener !== window) {
+      window.opener.postMessage({ forceUpdate: true }, "*");
+    }
+  }
+
+  function init() {
+    window.addEventListener("message", function(event) {
+      var props = event && event.data && event.data.props;
+      if (props) {
+        Object.keys(props).filter(k => props[k] && props[k].__fn).map(name => {
+          props[name] = function() {
+            event.source.postMessage({
+              callback: {
+                name: name,
+                args: safeClone(Array.prototype.slice.call(arguments))
+              }
+            }, "*");
+          };
+        });
+
+        var propsEvent = new Event("props");
+        propsEvent.props = props;
+        window.dispatchEvent(propsEvent);
+      }
+    });
+
+    window.addEventListener("props", function(e) {
+      if (typeof window.onprops === "function") {
+        window.onprops(e);
+      }
+    }, false);
+
+    forceUpdate();
+  }
+
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.14.7/react.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.14.7/react-dom.js"></script>
+
+<div id="container" />
+<script type="text/javascript">
+  window.addEventListener("props", function(e) {
+    var props = e.props;
+    var Hello = React.createClass({
+      displayName: 'Hello',
+      render: function() {
+        return React.createElement(
+            "div",
+            { onClick: props.onAlert },
+            "Hello ", this.props.series[0].card.name, JSON.stringify(props)
+        );
+      }
+    });
+
+    ReactDOM.render(
+      React.createElement(Hello, props),
+      document.getElementById('container')
+    );
+  }, false);
+</script>
+
+<script type="text/javascript">
+  init();
+</script>
